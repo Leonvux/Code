@@ -1,0 +1,115 @@
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+public class TagGamePlugin extends JavaPlugin implements CommandExecutor, Listener {
+    private Player tagger;
+    private Player speedrunner;
+    private boolean gameStarted = false;
+    private boolean taggerChosen = false;
+    private int tagTimeSeconds = 12 * 60; // 12 minutes
+    private int taskId;
+
+    @Override
+    public void onEnable() {
+        getCommand("starttag").setExecutor(this); // Register the command executor
+        Bukkit.getServer().getPluginManager().registerEvents(this, this);
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        if (cmd.getName().equalsIgnoreCase("starttag")) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage(ChatColor.RED + "Only players can execute this command!");
+                return true;
+            }
+            if (gameStarted) {
+                sender.sendMessage(ChatColor.RED + "The game has already started!");
+                return true;
+            }
+            if (Bukkit.getServer().getOnlinePlayers().size() < 2) {
+                sender.sendMessage(ChatColor.RED + "There must be at least two players to start the game!");
+                return true;
+            }
+            startGame();
+            return true;
+        }
+        return false;
+    }
+
+    private void startGame() {
+        gameStarted = true;
+        List<Player> players = new ArrayList<>(Bukkit.getServer().getOnlinePlayers());
+        Random random = new Random();
+        tagger = players.get(random.nextInt(players.size()));
+        speedrunner = players.get(random.nextInt(players.size()));
+        while (tagger == speedrunner) {
+            speedrunner = players.get(random.nextInt(players.size()));
+        }
+        taggerChosen = true;
+        tagger.sendMessage(ChatColor.GREEN + "You are the tagger! Your goal is to tag the speedrunner before time runs out.");
+        speedrunner.sendMessage(ChatColor.GREEN + "You are the speedrunner! Your goal is to kill the Ender Dragon before the tagger tags you.");
+
+        // Start timer for tagger
+        taskId = new BukkitRunnable() {
+            public void run() {
+                tagTimeSeconds--;
+                if (tagTimeSeconds <= 0) {
+                    tagger.setHealth(0); // Tagger dies if time runs out
+                    cancel();
+                }
+                // Update tagger's timer display
+                // Implement updating tagger's timer display here
+            }
+        }.runTaskTimer(this, 20, 20).getTaskId(); // Run every second
+
+        // Give compass to tagger
+        giveTaggerCompass();
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        if (gameStarted && (player == tagger || player == speedrunner)) {
+            endGame();
+        }
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        if (gameStarted) {
+            Player player = event.getPlayer();
+            player.sendMessage(ChatColor.RED + "A game is already in progress. Please wait for the next game.");
+        }
+    }
+
+    private void giveTaggerCompass() {
+        // Give tagger a compass
+        // Implement giving compass to tagger here
+    }
+
+    private void endGame() {
+        gameStarted = false;
+        Bukkit.getScheduler().cancelTask(taskId);
+        if (taggerChosen) {
+            if (speedrunner.isDead()) {
+                Bukkit.broadcastMessage(ChatColor.GREEN + "The speedrunner has defeated the Ender Dragon! " + speedrunner.getName() + " wins!");
+            } else {
+                Bukkit.broadcastMessage(ChatColor.GREEN + "The tagger has successfully tagged the speedrunner! " + tagger.getName() + " wins!");
+            }
+        }
+    }
+}
